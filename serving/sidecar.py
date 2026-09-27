@@ -131,7 +131,8 @@ def predict(payload: dict):
 
 
 def main():
-    uvicorn.run(app, host="127.0.0.1", port=8777)
+    port = int(os.environ.get("LAYA_SIDECAR_PORT", "8777"))
+    uvicorn.run(app, host="127.0.0.1", port=port)
 
 
 @app.on_event("shutdown")

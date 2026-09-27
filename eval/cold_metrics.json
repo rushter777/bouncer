@@ -1,0 +1,88 @@
+{
+  "accuracy": 0.86,
+  "soft_accuracy": 0.6725853557985931,
+  "brier_score": 0.2665575303935639,
+  "ece": 0.18304818569601483,
+  "score_mae": 0.6836479363963008,
+  "within_1_level": 0.775,
+  "per_qid": {
+    "difficulty": {
+      "accuracy": 0.675,
+      "count": 40,
+      "soft_accuracy": 0.29799757674336436,
+      "brier_score": 0.6361401167769353,
+      "score_mae": 0.6836479363963008
+    },
+    "needs_verification": {
+      "accuracy": 1.0,
+      "count": 40,
+      "soft_accuracy": 0.814717956399545,
+      "brier_score": 0.08650971758858414
+    },
+    "tools_file": {
+      "accuracy": 0.9,
+      "count": 40,
+      "soft_accuracy": 0.6978084232076072,
+      "brier_score": 0.23069852181904685
+    },
+    "tools_terminal": {
+      "accuracy": 0.775,
+      "count": 40,
+      "soft_accuracy": 0.6219535646028816,
+      "brier_score": 0.31936024482414604
+    },
+    "tools_web": {
+      "accuracy": 0.95,
+      "count": 40,
+      "soft_accuracy": 0.9304492580395675,
+      "brier_score": 0.060079050959107094
+    }
+  },
+  "confusion": {
+    "tools_file|false|false": 20,
+    "tools_terminal|false|false": 23,
+    "tools_web|false|false": 35,
+    "needs_verification|true|true": 29,
+    "score|0|1": 2,
+    "score|0|0": 6,
+    "needs_verification|false|false": 11,
+    "tools_file|true|true": 16,
+    "score|1|1": 12,
+    "tools_terminal|true|false": 9,
+    "tools_web|true|true": 3,
+    "tools_file|true|false": 3,
+    "tools_terminal|true|true": 8,
+    "score|3|3": 5,
+    "score|3|2": 3,
+    "tools_file|false|true": 1,
+    "score|2|3": 2,
+    "score|2|2": 4,
+    "score|3|1": 1,
+    "score|2|1": 5,
+    "tools_web|true|false": 2
+  },
+  "label_sets": {
+    "tools_file": [
+      "false",
+      "true"
+    ],
+    "tools_terminal": [
+      "false",
+      "true"
+    ],
+    "tools_web": [
+      "false",
+      "true"
+    ],
+    "needs_verification": [
+      "false",
+      "true"
+    ],
+    "score": [
+      "0",
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}
