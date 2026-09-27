@@ -100,10 +100,16 @@ async function tick(){
     $('pct').textContent=Math.round(lp*100)+'%';
     $('pesc').textContent=Math.round((s.escalated_count??0)/tot*100)+'%';
     $('donut').style.background=`conic-gradient(var(--green) ${lp*360}deg,#2563eb ${lp*360}deg)`;
-    const rows=(s.recent??[]).slice().reverse().map(r=>{
+    const seen=new Set();
+    const rows=(s.recent??[]).slice().reverse().filter(r=>{
+      const k=(r.task||'')+'|'+r.decision;           // dedupe re-judged dupes
+      if(seen.has(k))return false; seen.add(k); return true;
+    }).map(r=>{
       const local=['local','local-harness'].includes(r.decision);
       const d=local?'<span class="tag l">🟢 local</span>':'<span class="tag e">⚡ escalated</span>';
-      const t=(r.task||'').replace(/^\[Workspace[^\]]*\]\s*/,'').slice(0,60)||'(tool payload)';
+      let t=(r.task||'').replace(/^\[Workspace[^\]]*\]\s*/,'');
+      if(t.length>60){t=t.slice(0,60);t=t.slice(0,Math.max(t.lastIndexOf(' '),0))+'…';} // word boundary
+      if(!t)t='(tool payload)';
       return `<tr><td>${esc((r.ts||'').slice(11,19))}</td><td>${r.p_hard!=null?r.p_hard.toFixed(2):'—'}</td><td>${d}</td><td title="${esc(r.task)}">${esc(t)}</td></tr>`;
     }).join('');
     if(rows)$('rows').innerHTML=rows;
