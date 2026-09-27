@@ -12,7 +12,7 @@ import sys
 import time
 import argparse
 
-sys.path.insert(0, "/Users/apollo/laya-router")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import torch
@@ -22,8 +22,8 @@ from transformers import AutoTokenizer
 from eval_laya import _fix_tokenizer_config, build_model, load_jsonl, QTYPES
 from laya.common import build_sequence, collate_items
 
-CKPT = "/Users/apollo/laya-router/checkpoints/laya-v3d"
-DATA = "/Users/apollo/laya-router/data/router_v3d_eval.jsonl"
+CKPT = "checkpoints/laya-v3d"
+DATA = "data/router_v3d_eval.jsonl"
 
 
 def main():
@@ -84,7 +84,7 @@ def main():
         prec = (flagged & hard).sum() / flagged.sum() if flagged.sum() else float("nan")
         rec = (flagged & hard).sum() / hard.sum() if hard.sum() else float("nan")
         print(f"{c:>7.2f} {int(flagged.sum()):>8} {cov:>9.1%} {prec:>10.1%} {rec:>8.1%}")
-    np.save("/Users/apollo/laya-router/data/v3d_sweep_probs.npy", np.vstack([probs, golds]))
+    np.save("data/v3d_sweep_probs.npy", np.vstack([probs, golds]))
     print("\nSaved probs+golds to data/v3d_sweep_probs.npy")
 
 

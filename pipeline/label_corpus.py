@@ -13,10 +13,10 @@ import time
 import urllib.request
 
 API = "http://127.0.0.1:8081/v1/chat/completions"
-MODEL = "/Users/apollo/models/Qwen3.6-35B-A3B-GGUF/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"
-DATA = "/Users/apollo/laya-router/data/router_v2q_train.jsonl"
-EVAL = "/Users/apollo/laya-router/data/router_v2q_eval.jsonl"
-OUT = "/Users/apollo/laya-router/data/difficulty_v3_labels.jsonl"
+MODEL = os.environ.get("BOUNCER_TEACHER_MODEL", "http://127.0.0.1:8081/v1/chat/completions")  # point at any OpenAI-compatible local server
+DATA = "data/router_v2q_train.jsonl"
+EVAL = "data/router_v2q_eval.jsonl"
+OUT = "data/difficulty_v3_labels.jsonl"
 
 RUBRIC = """You are labeling a task that a user gave to an AI assistant (which has file, shell, and web tools). Answer 4 yes/no questions using ONLY the request text. Answer strictly as JSON.
 

@@ -13,9 +13,9 @@ import time
 import urllib.request
 
 API = "http://127.0.0.1:8081/v1/chat/completions"
-MODEL = "/Users/apollo/models/Qwen3.6-35B-A3B-GGUF/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"
-DATA = "/Users/apollo/laya-router/data/router_v2q_train.jsonl"
-OUT = "/Users/apollo/laya-router/data/tier_agreement.jsonl"
+MODEL = os.environ.get("BOUNCER_TEACHER_MODEL", "http://127.0.0.1:8081/v1/chat/completions")  # point at any OpenAI-compatible local server
+DATA = "data/router_v2q_train.jsonl"
+OUT = "data/tier_agreement.jsonl"
 
 RUBRIC = """You are labeling a task that a user gave to an AI assistant. The assistant runs on a Mac Studio and uses a Qwen 35B-A3B local model (strong at routine coding, file work, shell tasks, and lookups; weak at long multi-step debugging chains, deep architectural reasoning, and very obscure domain knowledge). Cloud models are stronger but cost money and leak data.
 

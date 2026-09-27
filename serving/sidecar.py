@@ -24,7 +24,7 @@ MODEL_PATH = os.environ.get(
     # v3d-mlx (Sept 27): gate-accuracy parity with v2q proven head-to-head
     # (323.1 vs 323.6 summed accuracy — a wash), plus a real difficulty head.
     # Swap back = change this path back to laya-v2q-mlx2.
-    "/Users/apollo/laya-router/checkpoints/laya-v3d-mlx",
+    "checkpoints/laya-v3d-mlx",
 )
 
 # EXACT question text from the training corpus — paraphrased criteria shift the

@@ -10,9 +10,9 @@ import json
 import subprocess
 import sys
 
-sys.path.insert(0, "/Users/apollo/laya-router")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import laya_hook  # noqa: E402
+from serving import hook as laya_hook  # noqa: E402
 
 TASKS = [
     # (task text, expected family — for OUR eyes, not Laya's)
@@ -38,8 +38,8 @@ def main():
         payload = dict(cfg)
         payload["task_text"] = text
         p = subprocess.run(
-            ["/Users/apollo/laya-train-venv311/bin/python",
-             "/Users/apollo/laya-router/laya_shadow.py"],
+            [sys.executable,
+             os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "serving", "shadow.py")],
             input=json.dumps(payload) + "\n",
             capture_output=True, text=True)
         if p.returncode != 0:

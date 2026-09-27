@@ -23,9 +23,9 @@ import urllib.error
 from collections import Counter
 
 API = "http://127.0.0.1:8081/v1/chat/completions"
-MODEL = "/Users/apollo/models/Qwen3.6-35B-A3B-GGUF/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"
-DATA = "/Users/apollo/laya-router/data/router_v2q_train.jsonl"
-OUT = "/Users/apollo/laya-router/data/agreement_test.jsonl"
+MODEL = os.environ.get("BOUNCER_TEACHER_MODEL", "http://127.0.0.1:8081/v1/chat/completions")  # point at any OpenAI-compatible local server
+DATA = "data/router_v2q_train.jsonl"
+OUT = "data/agreement_test.jsonl"
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 100
 
 RUBRIC = """You are labeling a task that a user gave to an AI assistant (which has file, shell, and web tools). Answer 5 yes/no questions using ONLY the request text. Two careful readers must be able to agree from the text alone. Answer strictly as JSON.

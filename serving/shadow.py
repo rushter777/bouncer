@@ -1,7 +1,7 @@
 """Shadow-mode logger for the Laya router.
 
 Reads judgment JSON (one per line) from stdin or a file argument,
-appends timestamped entries to /Users/apollo/laya-router/data/shadow_log.jsonl.
+appends timestamped entries to data/shadow_log.jsonl (BOUNCER_LOG_DIR to override).
 
 Fields written per entry:
     ts             – ISO-8601 UTC timestamp
@@ -19,7 +19,8 @@ import os
 import sys
 from datetime import datetime, timezone
 
-LOG_DIR = "/Users/apollo/laya-router/data"
+LOG_DIR = os.environ.get("BOUNCER_LOG_DIR", os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"))
 LOG_FILE = os.path.join(LOG_DIR, "shadow_log.jsonl")
 
 
