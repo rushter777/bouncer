@@ -37,11 +37,14 @@
   .foot{color:var(--dim);font-size:11.5px;margin-top:16px;font-family:var(--mono)}
   .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:6px;animation:p 2s infinite}
   @keyframes p{0%,100%{opacity:1}50%{opacity:.3}}
+  .flash{animation:fl .6s ease-out}
+  @keyframes fl{0%{background:#1d4ed855}100%{background:transparent}}
+  tr.flash td{animation:fl .6s ease-out}
 </style>
 </head>
 <body>
   <h1><span class="dot">🟢</span> Bouncer <span style="color:var(--dim);font-weight:400">/ savings dashboard</span></h1>
-  <div class="sub"><span class="pulse"></span>live · polls every 5s · <span id="updated">—</span></div>
+  <div class="sub"><span class="pulse"></span>live · polls every 2s · <span id="updated">—</span></div>
 
   <div class="grid">
     <div class="card">
@@ -83,22 +86,30 @@
 const $=id=>document.getElementById(id);
 const fmt=n=>n.toLocaleString();
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const flash=id=>{const e=$(id);e.classList.remove('flash');void e.offsetWidth;e.classList.add('flash');};
+let prev={};
+
+function setIf(id,val,fmtFn){
+  const e=$(id);
+  const key=id+'|'+val;
+  if(prev[id]!==key){ prev[id]=key; e.textContent=fmtFn(val); flash(id); }
+}
 
 async function tick(){
   try{
     const r=await fetch('/stats'); const s=await r.json();
-    $('savings').textContent=(s.savings_usd_est??0).toFixed(2);
-    $('spend').textContent=((s.escalated_tokens??0)/1e6*(s.price_per_mtok_assumed??3)).toFixed(2);
-    $('ltok').textContent=fmt(s.local_tokens??0);
-    $('etok').textContent=fmt(s.escalated_tokens??0);
-    $('price').textContent=s.price_per_mtok_assumed??3;
-    $('nloc').textContent=s.local_count??0;
-    $('nesc').textContent=s.escalated_count??0;
-    $('ntot').textContent=s.decisions_total??0;
+    setIf('savings',(s.savings_usd_est??0).toFixed(2),v=>v);
+    setIf('spend',((s.escalated_tokens??0)/1e6*(s.price_per_mtok_assumed??3)).toFixed(2),v=>v);
+    setIf('ltok',fmt(s.local_tokens??0),v=>v);
+    setIf('etok',fmt(s.escalated_tokens??0),v=>v);
+    setIf('price',s.price_per_mtok_assumed??3,v=>v);
+    setIf('nloc',s.local_count??0,v=>v);
+    setIf('nesc',s.escalated_count??0,v=>v);
+    setIf('ntot',s.decisions_total??0,v=>v);
     const tot=Math.max(1,(s.local_count??0)+(s.escalated_count??0));
     const lp=(s.local_count??0)/tot;
-    $('pct').textContent=Math.round(lp*100)+'%';
-    $('pesc').textContent=Math.round((s.escalated_count??0)/tot*100)+'%';
+    setIf('pct',Math.round(lp*100),v=>v+'%');
+    setIf('pesc',Math.round((s.escalated_count??0)/tot*100),v=>v+'%');
     $('donut').style.background=`conic-gradient(var(--green) ${lp*360}deg,#2563eb ${lp*360}deg)`;
     const seen=new Set();
     const rows=(s.recent??[]).slice().reverse().filter(r=>{
@@ -112,11 +123,19 @@ async function tick(){
       if(!t)t='(tool payload)';
       return `<tr><td>${esc((r.ts||'').slice(11,19))}</td><td>${r.p_hard!=null?r.p_hard.toFixed(2):'—'}</td><td>${d}</td><td title="${esc(r.task)}">${esc(t)}</td></tr>`;
     }).join('');
-    if(rows)$('rows').innerHTML=rows;
+    if(rows){
+      const htmlTarget=$('rows');
+      if(htmlTarget.dataset.sig!==undefined&&htmlTarget.dataset.sig!==rows.slice(0,300)){
+        htmlTarget.innerHTML=rows.replace('<tr>','<tr class="flash">',1); // flash newest
+      }else if(htmlTarget.dataset.sig===undefined){
+        htmlTarget.innerHTML=rows;
+      }
+      htmlTarget.dataset.sig=rows.slice(0,300);
+    }
     $('updated').textContent=new Date().toLocaleTimeString();
   }catch(e){$('updated').textContent='proxy unreachable — retrying';}
 }
-tick(); setInterval(tick,5000);
+tick(); setInterval(tick,2000);
 </script>
 </body>
 </html>
