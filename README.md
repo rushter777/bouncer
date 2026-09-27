@@ -105,6 +105,16 @@ Two hard-won tag rules, learned from the first real session:
 1. **Tags are for the human, not the model.** The proxy strips every tag line from conversation history before forwarding upstream. Without this, the model sees tagged history, starts imitating the tag (double-tagging), and — asked about routing — confabulates explanations about a layer it cannot see.
 2. **Never hardcode model names.** Multi-frontier setups change the escalation target per workload (`BOUNCER_ESC_MODEL`); a tag that names a model goes stale the first time you swap. Icons + a naming scheme you control beats echoing whatever tonight's stack was.
 
+### 4.2 The savings dashboard
+
+Open the proxy's root URL (`http://127.0.0.1:8788/`) and you get a live dashboard: estimated dollars saved (tokens answered locally × your frontier's price), route mix, actual frontier spend, and the last ten decisions with their p_hard scores. One env var to set your price:
+
+```bash
+BOUNCER_FRONTIER_PRICE_PER_MTOK=3.0   # blended $/1M tokens of your frontier model
+```
+
+The estimate is honest about its basis: it counts only usage captured from upstream responses (the log line includes the token counts), and the page says so. It starts counting from when you deployed usage logging — it does not invent history.
+
 ## 5. Repository structure
 
 ```
