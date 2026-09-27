@@ -32,7 +32,7 @@ import time
 import urllib.request
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import laya_hook  # the proven judge client: extractors + fail-safe, tested 14/14
@@ -230,6 +230,8 @@ async def chat(request: Request):
                     content = resp["choices"][0]["message"].get("content") or ""
                     if tag:
                         resp["choices"][0]["message"]["content"] = f"{tag}\n{content}"
+                    if isinstance(resp.get("usage"), dict):
+                        rec["usage"] = resp["usage"]
                     _log(rec)
                     return JSONResponse(resp)
                 # streaming: fall through to SSE relay with local upstream
@@ -254,7 +256,6 @@ async def chat(request: Request):
 
         # 3a. Streaming request → SSE relay (chunks relayed verbatim, tag prepended)
         if payload.get("stream"):
-            _log(rec)
 
             def sse_relay():
                 import urllib.error
@@ -266,13 +267,15 @@ async def chat(request: Request):
                         tag_sent = False
                         for line in r:
                             s = line.decode("utf-8", "replace")
-                            if not tag_sent and tag and s.startswith("data: ") and tag not in s:
+                            if s.startswith("data: "):
                                 body = s[6:].strip()
                                 if body and body != "[DONE]":
                                     try:
                                         j = json.loads(body)
-                                        d = j.get("choices") and j["choices"][0].get("delta") or {}
-                                        if d.get("content"):
+                                        if isinstance(j.get("usage"), dict):
+                                            rec["usage"] = j["usage"]
+                                        d = (j.get("choices") and j["choices"][0].get("delta")) or {}
+                                        if not tag_sent and tag and d.get("content"):
                                             d["content"] = f"{tag}\n{d['content']}"
                                             tag_sent = True
                                             s = "data: " + json.dumps(j) + "\n\n"
@@ -284,6 +287,8 @@ async def chat(request: Request):
                                                 "type": "proxy_error"}})
                     yield f"data: {err}\n\n"
                     yield "data: [DONE]\n\n"
+                finally:
+                    _log(rec)  # logged at stream end so token usage is included
 
             return StreamingResponse(sse_relay(), media_type="text/event-stream",
                                      headers={"Cache-Control": "no-cache",
@@ -294,6 +299,8 @@ async def chat(request: Request):
         if tag:
             content = resp["choices"][0]["message"].get("content") or ""
             resp["choices"][0]["message"]["content"] = f"{tag}\n{content}"
+        if isinstance(resp.get("usage"), dict):
+            rec["usage"] = resp["usage"]
         _log(rec)
         return JSONResponse(resp)
 
@@ -303,6 +310,65 @@ async def chat(request: Request):
         _log(rec)
         return JSONResponse({"error": {"message": f"bouncer proxy failure: {e}"}},
                             status_code=502)
+
+
+def _read_log():
+    recs = []
+    try:
+        with open(LOG_FILE) as f:
+            for line in f:
+                try:
+                    recs.append(json.loads(line))
+                except ValueError:
+                    pass
+    except FileNotFoundError:
+        pass
+    return recs
+
+
+# Frontier price used for savings estimates: blended $ per 1M tokens you
+# would have paid if every request went to the escalation model.
+PRICE_PER_MTOK = float(os.environ.get("BOUNCER_FRONTIER_PRICE_PER_MTOK", "3.0"))
+
+
+@app.get("/stats")
+def stats():
+    recs = _read_log()
+    routed = [r for r in recs if r.get("decision")]
+    local = [r for r in routed if r.get("decision") in ("local", "local-harness")]
+    esc = [r for r in routed if r.get("decision") in ("escalate", "passthrough-harness")]
+
+    def _tok(rs, keys=("prompt_tokens", "completion_tokens")):
+        n = 0
+        for r in rs:
+            u = r.get("usage") or {}
+            n += sum(int(u.get(k) or 0) for k in keys)
+        return n
+
+    local_tok = _tok(local)
+    esc_tok = _tok(esc)
+    savings = local_tok / 1_000_000 * PRICE_PER_MTOK
+
+    return {
+        "decisions_total": len(routed),
+        "local_count": len(local),
+        "escalated_count": len(esc),
+        "local_tokens": local_tok,
+        "escalated_tokens": esc_tok,
+        "savings_usd_est": round(savings, 4),
+        "price_per_mtok_assumed": PRICE_PER_MTOK,
+        "basis": "savings = tokens answered locally x frontier price; usage captured from upstream responses",
+        "recent": routed[-10:],
+    }
+
+
+@app.get("/")
+def dashboard():
+    page = os.path.join(HERE, "dashboard.html")
+    if os.path.exists(page):
+        with open(page) as f:
+            return HTMLResponse(f.read())
+    return HTMLResponse("<h1>Bouncer</h1><p>proxy is running; dashboard.html not found</p>")
 
 
 if __name__ == "__main__":
