@@ -88,6 +88,23 @@ fail-safe: ANY failure → all tools exposed, verification on, source=fallback
 
 The fail-safe is the load-bearing wall: the classifier may be wrong, dead, or slow — the assistant must never notice. Verified by killing the sidecar mid-operation.
 
+### 4.1 The router (Bouncer proxy) — and how to see who answered
+
+The judgment layer ships with an OpenAI-compatible **proxy** (`serving/proxy.py`) that does the actual routing: point any harness's `base_url` at it and easy prompts are answered by your local model, hard ones pass to the frontier model, tool-carrying prompts are judged too (simple tool work stays local; deep chains go to the frontier). The proxy is harness-agnostic — anything that speaks the OpenAI wire format can sit in front of it.
+
+Every routed reply carries a **tag** so the human always knows who answered. Tags are config, not code — the defaults describe one machine's stack, yours will differ:
+
+```bash
+BOUNCER_TAG_LOCAL="[🟢 my-local-model]"   # green: local model answered
+BOUNCER_TAG_ESC="[⚡ my-frontier-model]"   # yellow: escalated to frontier
+# icons-only works too: BOUNCER_TAG_LOCAL="🟢" BOUNCER_TAG_ESC="⚡"
+```
+
+Two hard-won tag rules, learned from the first real session:
+
+1. **Tags are for the human, not the model.** The proxy strips every tag line from conversation history before forwarding upstream. Without this, the model sees tagged history, starts imitating the tag (double-tagging), and — asked about routing — confabulates explanations about a layer it cannot see.
+2. **Never hardcode model names.** Multi-frontier setups change the escalation target per workload (`BOUNCER_ESC_MODEL`); a tag that names a model goes stale the first time you swap. Icons + a naming scheme you control beats echoing whatever tonight's stack was.
+
 ## 5. Repository structure
 
 ```
@@ -106,7 +123,8 @@ laya-router/
 ├── serving/
 │   ├── sidecar.py            # FastAPI, health endpoint, env-config checkpoint
 │   ├── hook.py               # stdlib client, fail-safe, env thresholds
-│   └── shadow.py             # append-only flight recorder
+│   ├── shadow.py             # append-only flight recorder
+│   └── proxy.py              # Bouncer: the routing switch + tags (see §4.1)
 ├── tests/
 │   └── test_hook.py          # 14 tests incl. fail-safe + advisory flag contract
 ├── data/
@@ -120,7 +138,7 @@ laya-router/
 
 ## 6. What's deliberately not built
 
-- **Intake/routing** — the judgment exists and logs, but nothing routes prompts between models yet. Build it after shadow data proves the flags fire correctly in the wild.
+- **Intake/routing** — built and soak-testing (`serving/proxy.py`, §4.1): judgment → rule layer → real model switching, tags on every reply, tags stripped from model-visible history. Not yet wired into the author's daily-driver profile — soaking on a test profile first.
 - **Outcome labels** — the shadow log records judgments, not what happened next. Closing that loop (did the task actually need retries? did a human redo it?) is the path to labels that aren't anyone's opinion at all.
 - **Automated retraining** — a nightly retrain is 88 minutes of GPU producing an identical model when the corpus hasn't changed. The right automation: accumulate new labeled rows, retrain only when there's something new to learn, swap only when the eval beats production. Data-triggered, not clock-triggered.
 
