@@ -1,0 +1,26 @@
+# Private artifacts — never publish these. They are your data, shaped.
+data/real/
+checkpoints/
+*.safetensors
+shadow_log.jsonl
+*_train.jsonl
+*_eval.jsonl
+agreement_test.jsonl
+tier_agreement.jsonl
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+
+# Scratch
+*.log
+*.npy
