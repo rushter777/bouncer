@@ -153,9 +153,12 @@ bouncer/
 
 **What stays private:** real task corpora, shadow logs, trained checkpoints. They are *your data, shaped*. The repo ships the machine that makes your-data-shaped models — which is the whole point.
 
-## 6. What's deliberately not built
+## 6. Status and what's deliberately not built
 
-- **Intake/routing** — built and soak-testing (`serving/proxy.py`, §4.1): judgment → rule layer → real model switching, tags on every reply, tags stripped from model-visible history. Not yet wired into the author's daily-driver profile — soaking on a test profile first.
+**Deployed and running (as of Sept 27):** the full stack is live on the author's machine — the proxy as a persistent service, wired into a test profile of his assistant (not the daily driver), routing real traffic: easy prompts to the local model, flagged-hard prompts to the frontier model, tags on every reply, all decisions logged. First real session ran from a phone, with green (local) and yellow (escalated) tags on the correct prompts and a live savings dashboard. It soaks there before the daily-driver profile is touched. Fail-open throughout: if the judge or the proxy dies, chat degrades to plain local model, it never breaks.
+
+What's deliberately not built:
+
 - **Outcome labels** — the shadow log records judgments, not what happened next. Closing that loop (did the task actually need retries? did a human redo it?) is the path to labels that aren't anyone's opinion at all.
 - **Automated retraining** — a nightly retrain is 88 minutes of GPU producing an identical model when the corpus hasn't changed. The right automation: accumulate new labeled rows, retrain only when there's something new to learn, swap only when the eval beats production. Data-triggered, not clock-triggered.
 
