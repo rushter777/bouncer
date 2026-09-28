@@ -1,8 +1,25 @@
 # The Router That Earns Its Keep
 
+![Banner — the bouncer at the door](assets/banner.png)
+
 **A practical pipeline for fine-tuning a small decision model (Laya) on your own tasks — including what failed, and why.**
 
 *Helix Max — technical write-up, September 2026. This repo is the pipeline described below.*
+
+---
+
+## Contents
+
+- [1. The problem](#1-the-problem)
+- [2. The method (the part worth stealing)](#2-the-method-the-part-worth-stealing)
+- [3. The scoreboard](#3-the-scoreboard)
+- [4. Serving architecture](#4-serving-architecture)
+  - [4.1 The router (Bouncer proxy)](#41-the-router-bouncer-proxy--and-how-to-see-who-answered)
+  - [4.2 The savings dashboard](#42-the-savings-dashboard)
+- [5. Repository structure](#5-repository-structure)
+- [6. Status and what's deliberately not built](#6-status-and-whats-deliberately-not-built)
+- [7. The four-model decomposition experiment](#7-the-four-model-decomposition-experiment)
+- [8. Acknowledging the lineage](#8-acknowledging-the-lineage)
 
 ---
 
@@ -120,6 +137,8 @@ The estimate is honest about its basis: it counts only usage captured from upstr
 ```
 bouncer/
 ├── README.md                 # this write-up
+├── assets/
+│   └── banner.png            # the bouncer at the door (README header)
 ├── docs/
 │   └── method.md             # §2 expanded, with the four-model comparison
 ├── pipeline/
