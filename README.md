@@ -10,6 +10,7 @@
 
 ## Contents
 
+- [0. Quickstart](#0-quickstart)
 - [1. The problem](#1-the-problem)
 - [2. The method (the part worth stealing)](#2-the-method-the-part-worth-stealing)
 - [3. The scoreboard](#3-the-scoreboard)
@@ -20,6 +21,90 @@
 - [6. Status and open problems](#6-status-and-open-problems)
 - [7. The four-model decomposition experiment](#7-the-four-model-decomposition-experiment)
 - [8. Acknowledging the lineage](#8-acknowledging-the-lineage)
+
+---
+
+## 0. Quickstart
+
+Verified end-to-end from a clean clone of this repo on Apple Silicon (M1, 64GB). The whole run — generate, train, eval, serve, judge — takes about 10 minutes, most of it the first-time checkpoint download. On the toy corpus, training is ~1 minute.
+
+### Prerequisites
+
+- Python 3.11+
+- Any Mac (MPS) or Linux box (CPU works, slower). No GPU required — the base model is ~421M params.
+- The base checkpoint (Apache-2.0) downloads anonymously from Hugging Face on first use (~800MB). No account, no token.
+
+```bash
+git clone https://github.com/rushter777/bouncer.git
+cd bouncer
+
+# one venv for the training pipeline
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install laya transformers torch pyarrow safetensors
+```
+
+### 1. Generate a toy corpus (5 seconds)
+
+40 rows covering the full question battery — the gates (`tools_file`/`tools_terminal`/`tools_web`/`needs_verification`) plus difficulty. This trains a *toy* model; the point is proving the pipeline runs, not the numbers it produces.
+
+```bash
+python data/synthetic/generate.py            # writes data/synthetic/synthetic_corpus.jsonl
+```
+
+### 2. Train (~1 minute on an M1)
+
+RLCD fine-tune with post-training temperature calibration built in (the calibration runs automatically after the last epoch — you'll see it in the log).
+
+```bash
+python pipeline/train_rlcd.py \
+  --data data/synthetic/synthetic_corpus.jsonl \
+  --output-dir checkpoints/cold-test --epochs 2
+```
+
+### 3. Evaluate
+
+```bash
+python pipeline/eval_laya.py \
+  --checkpoint checkpoints/cold-test \
+  --data data/synthetic/synthetic_corpus.jsonl \
+  --device mps --output eval/cold_metrics.json
+```
+
+Expect high numbers (see `eval/cold_metrics.json` for our cold-run output). **These are smoke numbers, not accuracy** — train and eval share the same 40 synthetic rows. Real numbers require your own labeled corpus (§2.2) and a held-out split.
+
+### 4. Serve the judge
+
+The sidecar needs `laya-mlx` (MLX inference, macOS) — install it in the same venv if you're on Apple Silicon, or run the CPU path with the `laya` package already installed.
+
+```bash
+pip install fastapi uvicorn laya-mlx        # skip what you already have
+LAYA_MODEL_PATH=checkpoints/cold-test LAYA_SIDECAR_PORT=8791 python serving/sidecar.py
+
+# in another terminal — health check:
+curl -s http://127.0.0.1:8791/health
+```
+
+### 5. Judge a task (the hello world)
+
+```bash
+LAYA_SIDECAR_URL=http://127.0.0.1:8791/predict \
+  python serving/hook.py "Set up a cron job that rotates the logs weekly and verify it fired"
+```
+
+You'll get the full judgment as JSON: per-gate probabilities, the difficulty flag, and the applied routing config. Note the fail-safe: if the sidecar is down or slow, the hook returns all-True advisory flags rather than erroring — chat never breaks because the judge died.
+
+### 6. Run the tests
+
+```bash
+python -m unittest discover tests -v       # 14 tests, stdlib only, no sidecar needed
+```
+
+### Where to go next
+
+- **Real data:** `pipeline/agreement_test.py` is the first thing to run with your own teacher model — labels below ~85% self-agreement don't survive training (§2.2 is the story).
+- **Thresholds:** the hook defaults (0.5) are placeholders. Run `pipeline/sweep.py` on *your* eval split and set `LAYA_THRESH_*` env vars from the precision/coverage curves — never ship default thresholds.
+- **Routing:** `serving/proxy.py` is the full switch with tags and the dashboard (§4). Same pattern: soak on a test profile before anything you care about.
 
 ---
 
