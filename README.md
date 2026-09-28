@@ -2,7 +2,7 @@
 
 **A practical pipeline for fine-tuning a small decision model (Laya) on your own tasks — including what failed, and why.**
 
-*Helix Max — technical write-up, September 2026. Companion repo: `laya-router` (structure below).*
+*Helix Max — technical write-up, September 2026. This repo is the pipeline described below.*
 
 ---
 
@@ -118,14 +118,13 @@ The estimate is honest about its basis: it counts only usage captured from upstr
 ## 5. Repository structure
 
 ```
-laya-router/
+bouncer/
 ├── README.md                 # this write-up
 ├── docs/
-│   ├── method.md             # §2 expanded, with the four-model comparison
-│   ├── results.md            # §3 expanded: every eval, sweep, parity run
-│   └── lessons.md            # teacher noise floor, buckets vs ordinal, baselines
+│   └── method.md             # §2 expanded, with the four-model comparison
 ├── pipeline/
 │   ├── agreement_test.py     # teacher self-agreement gate (≥85%)
+│   ├── tier_agreement_test.py# same gate, applied to a tier question (it failed — see §3)
 │   ├── label_corpus.py       # rubric-based teacher labeling (JSON-forced output)
 │   ├── train_rlcd.py         # RLCD fine-tune (MPS, NaN-guarded, CLI)
 │   ├── eval_laya.py          # accuracy + confusion vs majority baseline
@@ -134,12 +133,20 @@ laya-router/
 │   ├── sidecar.py            # FastAPI, health endpoint, env-config checkpoint
 │   ├── hook.py               # stdlib client, fail-safe, env thresholds
 │   ├── shadow.py             # append-only flight recorder
-│   └── proxy.py              # Bouncer: the routing switch + tags (see §4.1)
+│   ├── proxy.py              # Bouncer: the routing switch + tags (see §4.1)
+│   └── dashboard.html        # savings dashboard served at the proxy root
 ├── tests/
 │   └── test_hook.py          # 14 tests incl. fail-safe + advisory flag contract
 ├── data/
-│   └── synthetic_example/    # toy corpus so the repo runs out of the box
+│   └── synthetic/            # toy corpus so the repo runs out of the box
+│       └── generate.py       # generator for the toy corpus
 │       # (real task corpora stay private — they contain your data)
+├── eval/
+│   └── cold_metrics.json     # output of the cold-run smoke test (synthetic
+│       # corpus, toy scale — proves the pipeline runs, NOT real accuracy;
+│       # real numbers live in §3 and come from private eval data)
+├── examples/
+│   └── demo_batch.py         # batch-judge a JSONL of tasks
 ├── checkpoints/              # .gitignored — models encode your corpus
 └── LICENSE                   # MIT
 ```
