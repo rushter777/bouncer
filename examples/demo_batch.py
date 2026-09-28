@@ -2,11 +2,12 @@
 """Demo batch: run a representative task spread through the live pipeline
 (judge -> apply -> shadow log), then print the resulting shadow_log entries.
 
-Runs against the REAL sidecar (:8777, v2q checkpoint). Nothing is blocked or
-routed — this is the exact production path the future intake wiring will use.
+Runs against the sidecar at LAYA_SIDECAR_URL (default http://127.0.0.1:8777/predict).
+Nothing is blocked or routed — this is the exact path an intake hook would use.
 """
 
 import json
+import os
 import subprocess
 import sys
 
@@ -15,16 +16,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from serving import hook as laya_hook  # noqa: E402
 
 TASKS = [
-    # (task text, expected family — for OUR eyes, not Laya's)
+    # (task text, expected family — for YOUR eyes, not Laya's)
     ("What's the difference between TCP and UDP?", "pure QA, no tools"),
-    ("Check the free RAM on the Studio and tell me what's using the most", "read-only system check"),
+    ("Check the free RAM on this machine and tell me what's using the most", "read-only system check"),
     ("Look up the latest version of llama.cpp and tell me what's new", "web lookup"),
-    ("Add a comment header to the top of ~/laya-router/README.md explaining what the project is", "single file edit"),
-    ("Find why the laya sidecar keeps restarting and fix it", "discovery/debugging"),
+    ("Add a comment header to the top of the project README explaining what the project is", "single file edit"),
+    ("Find why the log rotation job keeps failing and fix it", "discovery/debugging"),
     ("Design an intake system that routes prompts between local and cloud models based on difficulty", "design/open-ended"),
-    ("Run the test suite in ~/laya-router and paste the results", "terminal, known procedure"),
+    ("Run the test suite and paste the results", "terminal, known procedure"),
     ("The integration tests fail after the last commit. Diagnose and fix, make the suite pass", "multi-step: diagnose -> fix -> verify"),
-    ("Convert data/router_v3d_train.jsonl row counts into a markdown table", "transform/format"),
+    ("Convert the dataset's row counts into a markdown table", "transform/format"),
     ("Check today's USD/JPY rate and write it into a note", "web + file, chained"),
 ]
 
