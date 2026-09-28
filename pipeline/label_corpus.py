@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
-"""Label full v2q corpus with the 4-question difficulty rubric (post-agreement-test).
+"""Label a corpus with the 4-question difficulty rubric (post-agreement-test).
 
 Questions that passed the >=85% gate: multi_step, discovery, design, exec_verify.
 (done_open CUT at 79% agreement.) Single pass — teacher agreement proven at 92-96%.
-Labels written as a new difficulty_v3 field; raw JSON per task to data/difficulty_v3_labels.jsonl.
+Teacher: any OpenAI-compatible local server (BOUNCER_TEACHER_URL, default
+http://127.0.0.1:8081/v1/chat/completions; model name via BOUNCER_TEACHER_MODEL).
 """
 
 import json
+import os
 import random
 import sys
 import time
 import urllib.request
 
-API = "http://127.0.0.1:8081/v1/chat/completions"
-MODEL = os.environ.get("BOUNCER_TEACHER_MODEL", "http://127.0.0.1:8081/v1/chat/completions")  # point at any OpenAI-compatible local server
-DATA = "data/router_v2q_train.jsonl"
-EVAL = "data/router_v2q_eval.jsonl"
-OUT = "data/difficulty_v3_labels.jsonl"
+API = os.environ.get("BOUNCER_TEACHER_URL", "http://127.0.0.1:8081/v1/chat/completions")
+MODEL = os.environ.get("BOUNCER_TEACHER_MODEL", "local-model")
+DATA = sys.argv[1] if len(sys.argv) > 1 else "data/synthetic/synthetic_corpus.jsonl"
+EVAL = sys.argv[2] if len(sys.argv) > 2 else None
+OUT = os.environ.get("BOUNCER_LABEL_OUT", "data/difficulty_labels.jsonl")
 
 RUBRIC = """You are labeling a task that a user gave to an AI assistant (which has file, shell, and web tools). Answer 4 yes/no questions using ONLY the request text. Answer strictly as JSON.
 
@@ -81,7 +83,7 @@ def label_file(path, tag):
             continue
         score = sum(vals.values())  # 0-4
         out.write(json.dumps({"src": tag, "idx": i, "task": text[:200],
-                              "answers": vals, "difficulty_v3": score}) + "\n")
+                              "answers": vals, "difficulty": score}) + "\n")
         out.flush()
         done += 1
         if done % 10 == 0:
@@ -92,5 +94,6 @@ def label_file(path, tag):
 
 if __name__ == "__main__":
     label_file(DATA, "train")
-    label_file(EVAL, "eval")
+    if EVAL:
+        label_file(EVAL, "eval")
     print("ALL DONE")

@@ -1,7 +1,7 @@
 """
 Laya MLX sidecar — FastAPI server on 127.0.0.1:8777.
 
-Loads the Laya v2q-mlx model once at startup, guards every prediction
+Loads the configured checkpoint once at startup, guards every prediction
 with a threading.Lock (single forward pass at a time), and serves a
 /health endpoint plus a /predict POST endpoint.
 """
@@ -21,10 +21,11 @@ import uvicorn
 
 MODEL_PATH = os.environ.get(
     "LAYA_MODEL_PATH",
-    # v3d-mlx (Sept 27): gate-accuracy parity with v2q proven head-to-head
-    # (323.1 vs 323.6 summed accuracy — a wash), plus a real difficulty head.
-    # Swap back = change this path back to laya-v2q-mlx2.
-    "checkpoints/laya-v3d-mlx",
+    # Production note (author's setup): gate-accuracy parity between two
+    # checkpoints was proven head-to-head before swapping (323.1 vs 323.6
+    # summed accuracy — a wash), plus a real difficulty head. Point this at
+    # whatever checkpoint your own eval says is best.
+    "checkpoints/cold-test",
 )
 
 # EXACT question text from the training corpus — paraphrased criteria shift the

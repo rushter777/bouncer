@@ -61,11 +61,12 @@ QUESTION_SET = {
         "instructions": "Does an answer to this task need double-checking before it is used?",
         "criteria": {"true": "the stakes are high or errors would cost something", "false": "a quick answer is fine and low-stakes"},
     },
-    # Difficulty flag (v3d, Sept 26): score-type count of objective demands.
+    # Difficulty flag: score-type count of objective demands.
     # Advisory only — nothing gates on it. P(hard) = sum of levels 1-4;
-    # flag fires at >= LAYA_THRESH_HARD (default 0.8, ~81% precision at 6% coverage
-    # on the v3d eval). Meaningful only when the sidecar runs laya-v3d-mlx;
-    # a v2q sidecar answers this out-of-distribution (pre-swap noise).
+    # flag fires at >= LAYA_THRESH_HARD (default 0.8; ~81% precision at 6%
+    # coverage on the author's eval). Meaningful only when the sidecar runs
+    # a checkpoint trained on this question — an untrained sidecar answers
+    # it out-of-distribution.
     "difficulty": {
         "type": "score",
         "instructions": "Rate how demanding this task is for an assistant, as a count of objective demands: dependent multi-step, discovery/diagnosis, design choice, execution verification.",
