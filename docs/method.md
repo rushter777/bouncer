@@ -12,6 +12,8 @@ Big LLMs are expensive and slow for one job they're bad at anyway: **fast, consi
 
 This project built that classifier for a real workload: ~1,500 actual user tasks given to an AI assistant (file work, shell commands, web lookups, debugging). The stack: **Laya** (Apache-2.0 open decision model, 322–421M params) fine-tuned locally via RLCD, served behind a FastAPI sidecar, consulted by a stdlib-only hook with a hard fail-safe. Everything runs on a single Mac. No cloud, no API keys.
 
+The model that did double duty — teacher that labeled the corpus, and local tier that answers the easy prompts — was **Qwen3.6-35B-A3B** (MoE, ~35B total / ~3B active, 4-bit quant), served locally via llama.cpp. That class of model is the practical floor for teacher work: strong enough at strict-JSON rubric labeling to hit 92-96% self-agreement, small enough to run 1,500 labeling calls for free. The escalation target, by contrast, is deliberately unspecified — it's whatever frontier model you'd rather pay for only when needed.
+
 ## 2. The method (the part worth stealing)
 
 The single most important lesson: **subjective questions are untrainable; objective questions are easy.** Everything else in this document is a consequence of that.
