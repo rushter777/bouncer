@@ -8,13 +8,16 @@ Merged question set (from 4-model comparison: Helix Max/Gemini/ChatGPT/Grok):
   q4 design       — must choose among plausible approaches (design vs execute)
   q5 exec_verify  — must run/test/observe to prove it works (plausible answer insufficient)
 
-Protocol: sample N real task texts from router_v2q_train.jsonl, ask the local
-MoE (Qwen3.6-35B-A3B via llama-server :8081) all 5 questions twice per task
-(temp 0.7, two independent draws). Report per-question self-agreement.
-Gate: >=85% agreement to earn a node. Stdlib + urllib only (no deps).
+Protocol: sample N task texts from a corpus JSONL, ask the teacher model
+(all 5 questions twice per task, temp 0.7, two independent draws) and report
+per-question self-agreement. Gate: >=85% agreement to earn a node.
+Teacher: any OpenAI-compatible local server (BOUNCER_TEACHER_URL, default
+http://127.0.0.1:8081/v1/chat/completions; model name via BOUNCER_TEACHER_MODEL).
+Stdlib + urllib only (no deps).
 """
 
 import json
+import os
 import random
 import sys
 import time
@@ -22,10 +25,10 @@ import urllib.request
 import urllib.error
 from collections import Counter
 
-API = "http://127.0.0.1:8081/v1/chat/completions"
-MODEL = os.environ.get("BOUNCER_TEACHER_MODEL", "http://127.0.0.1:8081/v1/chat/completions")  # point at any OpenAI-compatible local server
-DATA = "data/router_v2q_train.jsonl"
-OUT = "data/agreement_test.jsonl"
+API = os.environ.get("BOUNCER_TEACHER_URL", "http://127.0.0.1:8081/v1/chat/completions")
+MODEL = os.environ.get("BOUNCER_TEACHER_MODEL", "local-model")
+DATA = sys.argv[2] if len(sys.argv) > 2 else "data/synthetic/synthetic_corpus.jsonl"
+OUT = os.environ.get("BOUNCER_AGREEMENT_OUT", "data/agreement_test.jsonl")
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 100
 
 RUBRIC = """You are labeling a task that a user gave to an AI assistant (which has file, shell, and web tools). Answer 5 yes/no questions using ONLY the request text. Two careful readers must be able to agree from the text alone. Answer strictly as JSON.

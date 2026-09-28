@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Threshold sweep for v3d difficulty: precision/coverage of flagging score>=1 tasks.
+"""Threshold sweep for the difficulty question: precision/coverage of flagging score>=1 tasks.
 
 Mirrors eval_laya.py's loading + inference, but extracts the difficulty question's
 per-level probabilities and computes P(score>=1) = sum of probs for levels 1..4.
 Then sweeps cutoffs.
+
+Usage: python sweep.py [checkpoint_dir] [eval_jsonl]
+Defaults: checkpoints/cold-test, data/synthetic/synthetic_corpus.jsonl
 """
 
 import json
@@ -22,8 +25,8 @@ from transformers import AutoTokenizer
 from eval_laya import _fix_tokenizer_config, build_model, load_jsonl, QTYPES
 from laya.common import build_sequence, collate_items
 
-CKPT = "checkpoints/laya-v3d"
-DATA = "data/router_v3d_eval.jsonl"
+CKPT = sys.argv[1] if len(sys.argv) > 1 else "checkpoints/cold-test"
+DATA = sys.argv[2] if len(sys.argv) > 2 else "data/synthetic/synthetic_corpus.jsonl"
 
 
 def main():
@@ -84,8 +87,8 @@ def main():
         prec = (flagged & hard).sum() / flagged.sum() if flagged.sum() else float("nan")
         rec = (flagged & hard).sum() / hard.sum() if hard.sum() else float("nan")
         print(f"{c:>7.2f} {int(flagged.sum()):>8} {cov:>9.1%} {prec:>10.1%} {rec:>8.1%}")
-    np.save("data/v3d_sweep_probs.npy", np.vstack([probs, golds]))
-    print("\nSaved probs+golds to data/v3d_sweep_probs.npy")
+    np.save("data/sweep_probs.npy", np.vstack([probs, golds]))
+    print("\nSaved probs+golds to data/sweep_probs.npy")
 
 
 if __name__ == "__main__":
