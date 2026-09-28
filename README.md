@@ -17,7 +17,7 @@
   - [4.1 The router (Bouncer proxy)](#41-the-router-bouncer-proxy--and-how-to-see-who-answered)
   - [4.2 The savings dashboard](#42-the-savings-dashboard)
 - [5. Repository structure](#5-repository-structure)
-- [6. Status and what's deliberately not built](#6-status-and-whats-deliberately-not-built)
+- [6. Status and open problems](#6-status-and-open-problems)
 - [7. The four-model decomposition experiment](#7-the-four-model-decomposition-experiment)
 - [8. Acknowledging the lineage](#8-acknowledging-the-lineage)
 
@@ -172,14 +172,16 @@ bouncer/
 
 **What stays private:** real task corpora, shadow logs, trained checkpoints. They are *your data, shaped*. The repo ships the machine that makes your-data-shaped models — which is the whole point.
 
-## 6. Status and what's deliberately not built
+## 6. Status and open problems
 
-**Deployed and running (as of Sept 27):** the full stack is live on the author's machine — the proxy as a persistent service, wired into a test profile of his assistant (not the daily driver), routing real traffic: easy prompts to the local model, flagged-hard prompts to the frontier model, tags on every reply, all decisions logged. First real session ran from a phone, with green (local) and yellow (escalated) tags on the correct prompts and a live savings dashboard. It soaks there before the daily-driver profile is touched. Fail-open throughout: if the judge or the proxy dies, chat degrades to plain local model, it never breaks.
+**This repo works as-is.** The full chain — generate a toy corpus, train, calibrate, evaluate, serve, and a discriminating hook test — was verified end-to-end from a clean clone of this exact tree (training run: 64 seconds on Apple Silicon, 14/14 hook tests passing). No private files needed: it runs out of the box on the included synthetic corpus.
 
-What's deliberately not built:
+**And it's running for real.** The full stack is live on the author's machine — the proxy as a persistent service, wired into a test profile of his assistant (not the daily driver), routing real traffic: easy prompts to the local model, flagged-hard prompts to the frontier model, tags on every reply, all decisions logged. First real session ran from a phone, with green (local) and yellow (escalated) tags landing on the correct prompts and a live savings dashboard. Fail-open throughout: if the judge or the proxy dies, chat degrades to the plain local model, it never breaks.
 
-- **Outcome labels** — the shadow log records judgments, not what happened next. Closing that loop (did the task actually need retries? did a human redo it?) is the path to labels that aren't anyone's opinion at all.
-- **Automated retraining** — a nightly retrain is 88 minutes of GPU producing an identical model when the corpus hasn't changed. The right automation: accumulate new labeled rows, retrain only when there's something new to learn, swap only when the eval beats production. Data-triggered, not clock-triggered.
+**Open problems — ideas welcome.** These are deliberate gaps, not oversights. If you're playing with the repo and have ideas (or want to PR a fix), these are the ones that matter:
+
+- **Outcome labels** — the shadow log records judgments, not what happened next. Closing that loop (did the task actually need retries? did a human redo it?) is the path to labels that aren't anyone's opinion at all. Ideas for cheap, honest outcome capture on a live proxy are the single most valuable contribution this repo could receive.
+- **Automated retraining** — a nightly retrain is 88 minutes of GPU producing an identical model when the corpus hasn't changed. The right automation: accumulate new labeled rows, retrain only when there's something new to learn, swap only when the eval beats production. Data-triggered, not clock-triggered. Triggers and eval-gates that make that safe are an open design question.
 
 ## 7. The four-model decomposition experiment
 
