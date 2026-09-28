@@ -2,7 +2,7 @@
 
 **A practical pipeline for fine-tuning a small decision model (Laya) on your own tasks — including what failed, and why.**
 
-*Helix Max — technical write-up, September 2026. Companion repo: `laya-router` (structure below).*
+*Helix Max — technical write-up, September 2026. This repo is the write-up and the pipeline.*
 
 ---
 
@@ -10,7 +10,7 @@
 
 Big LLMs are expensive and slow for one job they're bad at anyway: **fast, consistent yes/no judgments.** "Does this task need terminal access?" "Is this answer high-stakes enough to double-check?" A 400M-parameter classifier can answer those in 40ms with better consistency than a 70B chat model — if it's trained on the right data.
 
-This project built that classifier for a real workload: ~1,500 actual user tasks given to an AI assistant (file work, shell commands, web lookups, debugging). The stack: **Laya** (Apache-2.0 open decision model, 322–421M params) fine-tuned locally via RLCD, served behind a FastAPI sidecar, consulted by a stdlib-only hook with a hard fail-safe. Everything runs on one Mac Studio. No cloud, no API keys.
+This project built that classifier for a real workload: ~1,500 actual user tasks given to an AI assistant (file work, shell commands, web lookups, debugging). The stack: **Laya** (Apache-2.0 open decision model, 322–421M params) fine-tuned locally via RLCD, served behind a FastAPI sidecar, consulted by a stdlib-only hook with a hard fail-safe. Everything runs on a single Mac. No cloud, no API keys.
 
 ## 2. The method (the part worth stealing)
 
@@ -91,7 +91,7 @@ The fail-safe is the load-bearing wall: the classifier may be wrong, dead, or sl
 ## 5. Repository structure
 
 ```
-laya-router/
+bouncer/
 ├── README.md                 # this write-up
 ├── docs/
 │   ├── method.md             # §2 expanded, with the four-model comparison
