@@ -8,7 +8,7 @@ pydantic>=2.12,<3
 
 # --- Laya decision model (Apple Silicon) ---
 mlx>=0.31.1
-mlx-metal>=0.31.1
+mlx-metal>=0.32.3
 numpy>=2.0.0
 
 # --- training pipeline (synthetic corpus + RLCD label agreement) ---
