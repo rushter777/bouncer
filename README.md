@@ -17,6 +17,7 @@
 - [4. Serving architecture](#4-serving-architecture)
   - [4.1 The router (Bouncer proxy)](#41-the-router-bouncer-proxy--and-how-to-see-who-answered)
   - [4.2 The savings dashboard](#42-the-savings-dashboard)
+  - [4.3 The outcome ledger](#43-the-outcome-ledger--closing-the-loop-asynchronously)
 - [5. Repository structure](#5-repository-structure)
 - [6. Status and open problems](#6-status-and-open-problems)
 - [7. The four-model decomposition experiment](#7-the-four-model-decomposition-experiment)
@@ -41,7 +42,7 @@ cd bouncer
 # one venv for the training pipeline
 python3.11 -m venv .venv
 source .venv/bin/activate
-pip install laya transformers torch pyarrow safetensors
+pip install -r requirements.txt        # pinned, reproducible stack
 ```
 
 ### 1. Generate a toy corpus (5 seconds)
@@ -78,7 +79,7 @@ Expect high numbers (see `eval/cold_metrics.json` for our cold-run output). **Th
 The sidecar needs `laya-mlx` (MLX inference, macOS) — install it in the same venv if you're on Apple Silicon, or run the CPU path with the `laya` package already installed.
 
 ```bash
-pip install fastapi uvicorn laya-mlx        # skip what you already have
+pip install -r requirements.txt             # or fastapi uvicorn mlx individually
 LAYA_MODEL_PATH=checkpoints/cold-test LAYA_SIDECAR_PORT=8791 python serving/sidecar.py
 
 # in another terminal — health check:
@@ -219,6 +220,42 @@ BOUNCER_FRONTIER_PRICE_PER_MTOK=3.0   # blended $/1M tokens of your frontier mod
 
 The estimate is honest about its basis: it counts only usage captured from upstream responses (the log line includes the token counts), and the page says so. It starts counting from when you deployed usage logging — it does not invent history.
 
+### 4.3 The outcome ledger — closing the loop asynchronously
+
+Every routing decision mints a `decision_id` (12-hex UUID) at request time, alongside a `task_text_hash` (SHA-256, first 16 hex chars) and the `routed_to` tier (`local` / `frontier`). The ID is threaded into the conversation itself — a system-prompt stanza at position 0 — so it survives any transport, any client restart, any transcript export. The shadow log's append-only records become a **decision ledger**: each row now carries the join key needed to answer the only question that matters for training: *was the route right?*
+
+Downstream, the loop is closed by two offline processes, never in the request path:
+
+```
+                    ┌──────────────────────────────────────────────────┐
+                    │              REQUEST PATH (hot, <10ms judge)      │
+                    │                                                  │
+  client ──────────►│  proxy.py ── mint decision_id ──┬── local model   │
+                    │        │                        └── frontier     │
+                    │        ▼                                         │
+                    │  shadow.py  (append-only ledger: decision_id,    │
+                    │             task_text_hash, p_hard, routed_to)   │
+                    └──────────────┬───────────────────────────────────┘
+                                   │  (async — never blocks requests)
+                                   ▼
+  ┌────────────────────────────────────────────────────────────────────┐
+  │                OFFLINE JOIN (cold)                                 │
+  │                                                                    │
+  │  transcripts/logs ──► outcome_extract.py ──► outcome events         │
+  │                        (tool_error, user_retry,                    │
+  │                         assistant_error_msg, explicit_success)    │
+  │                                      │                             │
+  │                                      ▼                             │
+  │  outcome_joiner.py: join on decision_id (fallback: task_text_hash   │
+  │  ± 5 min window) ──► shadow_log_enriched.jsonl                     │
+  │                      (execution_outcome per decision)              │
+  └────────────────────────────────────────────────────────────────────┘
+```
+
+The joiner is byte-offset-checkpointed (resume-able, never reprocesses), writes enriched *copies* — originals stay append-only — and quarantines unmatched events to `data/outcome_unmatched.jsonl` for inspection instead of silently dropping them.
+
+**Why deterministic runtime signals beat LLM-as-a-judge.** A judge model scoring "did the model do well?" re-introduces exactly the noise this project spent its whole pipeline fighting: subjective ambiguity, judge drift, and agreement gates that exist because even the teacher disagrees with itself 15% of the time (§2). A `tool_error` in a transcript is not an opinion. A user re-asking within seconds is not an opinion. These are *ground-truth outcomes* observable from runtime artifacts — free to collect, perfectly reproducible, and immune to the label-noise problem that motivated the ≥85% self-agreement gate. When a signal is deterministic, you don't need to trust it; you just need to log it.
+
 ## 5. Repository structure
 
 ```
@@ -238,8 +275,10 @@ bouncer/
 ├── serving/
 │   ├── sidecar.py            # FastAPI, health endpoint, env-config checkpoint
 │   ├── hook.py               # stdlib client, fail-safe, env thresholds
-│   ├── shadow.py             # append-only flight recorder
+│   ├── shadow.py             # append-only flight recorder (decision ledger)
 │   ├── proxy.py              # Bouncer: the routing switch + tags (see §4.1)
+│   ├── outcome_extract.py    # transcripts/logs → outcome events (see §4.3)
+│   ├── outcome_joiner.py     # async ledger enrichment: events + decisions → outcomes
 │   └── dashboard.html        # savings dashboard served at the proxy root
 ├── tests/
 │   └── test_hook.py          # 14 tests incl. fail-safe + advisory flag contract
@@ -248,11 +287,17 @@ bouncer/
 │       └── generate.py       # generator for the toy corpus
 │       # (real task corpora stay private — they contain your data)
 ├── eval/
-│   └── cold_metrics.json     # output of the cold-run smoke test (synthetic
-│       # corpus, toy scale — proves the pipeline runs, NOT real accuracy;
-│       # real numbers live in §3 and come from private eval data)
+│   ├── cold_metrics.json     # output of the cold-run smoke test (synthetic
+│   │       # corpus, toy scale — proves the pipeline runs, NOT real accuracy;
+│   │       # real numbers live in §3 and come from private eval data)
+│   ├── bench_sidecar_memory.py # MLX cache-fragmentation benchmark (varied vs
+│   │       # fixed lengths, explicit-sweep latency cost — see §6)
+│   ├── sidecar_memory_audit.md # findings: +41 GB pooled-cache growth on
+│   │       # varied-length traffic; clear_cache() resolves it at ~5x latency
+│   └── outcome_capture_design.md # design notes for the §4.3 outcome ledger
 ├── examples/
 │   └── demo_batch.py         # batch-judge a JSONL of tasks
+├── requirements.txt          # pinned, reproducible stack (Python 3.9+)
 ├── checkpoints/              # .gitignored — models encode your corpus
 └── LICENSE                   # MIT
 ```
@@ -267,7 +312,7 @@ bouncer/
 
 **Open problems — ideas welcome.** These are deliberate gaps, not oversights. If you're playing with the repo and have ideas (or want to PR a fix), these are the ones that matter:
 
-- **Outcome labels** — the shadow log records judgments, not what happened next. Closing that loop (did the task actually need retries? did a human redo it?) is the path to labels that aren't anyone's opinion at all. Ideas for cheap, honest outcome capture on a live proxy are the single most valuable contribution this repo could receive.
+- **Outcome labels** (Resolved in v0.2) — Closed via `serving/outcome_extract.py` and `serving/outcome_joiner.py` (§4.3) using deterministic runtime signals (`tool_error`, rapid `user_retry`) joined asynchronously on `decision_id`. The shadow log's append-only ledger now carries execution outcomes — no LLM-as-a-judge needed.
 - **Automated retraining** — a nightly retrain is 88 minutes of GPU producing an identical model when the corpus hasn't changed. The right automation: accumulate new labeled rows, retrain only when there's something new to learn, swap only when the eval beats production. Data-triggered, not clock-triggered. Triggers and eval-gates that make that safe are an open design question.
 
 ## 7. The four-model decomposition experiment

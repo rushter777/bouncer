@@ -10,6 +10,8 @@ Fields written per entry:
     tools_terminal – list of terminal-tool probabilities (floats)
     tools_web      – list of web-tool probabilities (floats)
     needs_verification – boolean derived from judgment fields
+    execution_outcome – outcome of actually running the task, if known
+                        ('success' | 'failed' | 'retried' | 'human_redo' | None)
 
 Stdlib only. Never raises. Never modifies anything outside the log file.
 """
@@ -62,6 +64,24 @@ def _extract_task_text(record):
     return ""
 
 
+VALID_OUTCOMES = frozenset({"success", "failed", "retried", "human_redo"})
+
+
+def _extract_outcome(record):
+    """Pull a validated execution outcome from a record, if present.
+
+    Accepts the field from any input shape (top-level or nested 'outcome'
+    dict). Returns None when absent — 'never raises' applies here too.
+    """
+    for source in (record, record.get("outcome") if isinstance(record.get("outcome"), dict) else None):
+        if not isinstance(source, dict):
+            continue
+        val = source.get("execution_outcome")
+        if isinstance(val, str) and val in VALID_OUTCOMES:
+            return val
+    return None
+
+
 def _extract_p_hard(record):
     """Pull P(hard) from a hook output: top-level p_hard, or derive from raw
     difficulty probabilities (1 - p('0-none')). Returns None if unavailable."""
@@ -92,7 +112,11 @@ def _process_record(record):
         "tools_web": _extract_prob(record, "tools_web"),
         "needs_verification": _extract_prob(record, "needs_verification"),
         "p_hard": _extract_p_hard(record),
+        "execution_outcome": _extract_outcome(record),
         "source": source,   # 'laya' | 'fallback' | sidecar model name if present
+        "decision_id": record.get("decision_id"),
+        "task_text_hash": record.get("task_text_hash"),
+        "routed_to": record.get("routed_to"),  # 'local' | 'frontier'
     }
 
 

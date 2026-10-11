@@ -21,14 +21,19 @@ Env:
     BOUNCER_PROXY_PORT   (default 8788)
     BOUNCER_LOCAL_URL    (default http://127.0.0.1:8081/v1/chat/completions)
     BOUNCER_JUDGE_URL    (default http://127.0.0.1:8777/predict)
-    BOUNCER_ESC_KEYNAME  (.env var holding the escalation key, default OPENROUTER_API_KEY)
+    BOUNCER_ESC_URL      (default https://openrouter.ai/api/v1/chat/completions)
+    BOUNCER_ESC_MODEL    (default z-ai/glm-5.3 — swap frontier providers without code changes)
+    BOUNCER_ESC_KEYNAME   (default OPENROUTER_API_KEY — name of env var holding the key)
+    BOUNCER_PROXY_HOST / BOUNCER_PROXY_PORT  (default 127.0.0.1:8788)
     LAYA_THRESH_HARD     (default 0.8)
 """
 
+import hashlib
 import json
 import os
 import sys
 import time
+import uuid
 import urllib.request
 
 from fastapi import FastAPI, Request
@@ -38,10 +43,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import laya_hook  # the proven judge client: extractors + fail-safe, tested 14/14
 
 PROXY_PORT = int(os.environ.get("BOUNCER_PROXY_PORT", "8788"))
+PROXY_HOST = os.environ.get("BOUNCER_PROXY_HOST", "127.0.0.1")
 LOCAL_URL = os.environ.get("BOUNCER_LOCAL_URL", "http://127.0.0.1:8081/v1/chat/completions")
 JUDGE_URL = os.environ.get("BOUNCER_JUDGE_URL", "http://127.0.0.1:8777/predict")
 ESC_KEYNAME = os.environ.get("BOUNCER_ESC_KEYNAME", "OPENROUTER_API_KEY")
-ESC_URL = "https://openrouter.ai/api/v1/chat/completions"
+# Frontier endpoint — swap providers without touching code (OpenRouter by default).
+ESC_URL = os.environ.get(
+    "BOUNCER_ESC_URL", "https://openrouter.ai/api/v1/chat/completions"
+)
 THRESH = float(os.environ.get("LAYA_THRESH_HARD", "0.8"))
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -143,6 +152,21 @@ def _needs_harness(payload):
     return False
 
 
+def _thread_decision_id(payload, decision_id):
+    """Inject *decision_id* into the payload so downstream workers can echo it back.
+
+    Writes a system message at the top of the messages list — this is the most
+    reliable surface because it survives all transports (HTTP headers may be
+    stripped by intermediaries, but a system-prompt stanza always reaches the model).
+    """
+    import copy
+    msgs = copy.deepcopy(payload.get("messages") or [])
+    stanza = f"ROUTING DECISION ID: {decision_id} — include this id in any follow-up metadata."
+    # Insert at position 0 so it's the first context the model sees.
+    msgs.insert(0, {"role": "system", "content": stanza})
+    payload["messages"] = msgs
+
+
 def _judge(task_text):
     """Ask Laya via the proven hook client. Returns (p_hard, flag, source)."""
     try:
@@ -177,6 +201,12 @@ async def chat(request: Request):
     payload = await request.json()
     messages = payload.get("messages") or []
     rec = {"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+
+    # Outcome-capture key — minted at routing time, threaded downstream.
+    decision_id = uuid.uuid4().hex[:12]
+    task_text_raw = _latest_user_text(messages)
+    rec["decision_id"] = decision_id
+    rec["task_text_hash"] = hashlib.sha256(task_text_raw.encode()).hexdigest()[:16]
 
     try:
         # 0. Route decision
@@ -215,12 +245,17 @@ async def chat(request: Request):
             tag = TAG_LOCAL if decision == "local" else TAG_ESC
         rec["decision"] = decision
 
+        # Outcome-capture: classify as local or frontier for training signal.
+        rec["routed_to"] = "local" if decision in ("local", "local-harness") else "frontier"
+
         # 1. Route (local + local-harness both go to the 35B, tools forwarded)
         if decision in ("local", "local-harness"):
             try:
                 local_payload = _strip_tags_from_history(dict(payload))
                 local_payload["model"] = "local-35b"
                 local_payload.pop("chat_template_kwargs", None)  # llama-server args differ
+                # Thread outcome-capture key into the request so it can be echoed back.
+                _thread_decision_id(local_payload, decision_id)
                 rec["upstream"] = ("local", LOCAL_URL, local_payload,
                                    {"Content-Type": "application/json"})
                 if not payload.get("stream"):
@@ -246,6 +281,8 @@ async def chat(request: Request):
             esc_payload = _strip_tags_from_history(dict(payload))
             esc_payload["model"] = os.environ.get("BOUNCER_ESC_MODEL", "z-ai/glm-5.3")
             esc_payload.pop("chat_template_kwargs", None)  # llama-server-specific
+            # Thread outcome-capture key into the escalation request too.
+            _thread_decision_id(esc_payload, decision_id)
             rec["upstream"] = ("esc", ESC_URL, esc_payload, _esc_headers())
             rec["answered_by"] = "session-model"
 
@@ -373,4 +410,4 @@ def dashboard():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=PROXY_PORT)
+    uvicorn.run(app, host=PROXY_HOST, port=PROXY_PORT)

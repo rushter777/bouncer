@@ -1,0 +1,20 @@
+# Bouncer — pinned, reproducible stack. Tested on Python 3.11 (macOS, Apple Silicon).
+# Python >= 3.9 supported; the serving modules use `from __future__ import annotations`.
+
+# --- serving (proxy + sidecar) ---
+fastapi==0.128.4          # OpenAPI proxy server (BOUNCER_* env config)
+uvicorn==0.40.0           # ASGI runner; 0.53.0 also verified against the production venv
+pydantic>=2.12,<3         # fastapi validation layer
+
+# --- Laya decision model (Apple Silicon) ---
+mlx==0.31.1               # local inference; 0.32.2 verified in the production venv
+mlx-metal==0.31.1
+numpy==2.4.2              # 2.4.6 verified against the production venv
+
+# --- training pipeline (synthetic corpus + RLCD label agreement) ---
+torch==2.10.0             # HuggingFace-ecosystem tensors for the label pipeline
+transformers==5.1.0       # tokenizer parity tests
+safetensors==0.7.0
+
+# --- escalation path (frontier tier) ---
+requests==2.32.5          # OpenRouter upstream client

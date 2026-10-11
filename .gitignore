@@ -3,6 +3,10 @@ data/real/
 checkpoints/
 *.safetensors
 shadow_log.jsonl
+data/*.jsonl
+data/joiner_state.json
+data/outcome_unmatched.jsonl
+data/shadow_log_enriched.jsonl
 *_train.jsonl
 *_eval.jsonl
 agreement_test.jsonl
