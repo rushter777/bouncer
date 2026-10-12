@@ -14,7 +14,7 @@ numpy>=2.0.0
 # --- training pipeline (synthetic corpus + RLCD label agreement) ---
 torch>=2.2.0
 transformers>=4.48.0
-safetensors>=0.4.5
+safetensors>=0.8.0
 
 # --- escalation path (frontier tier) ---
 requests>=2.32.3
