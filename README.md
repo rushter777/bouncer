@@ -6,6 +6,8 @@
 
 *Helix Max — technical write-up, September 2026. This repo is the pipeline described below.*
 
+> **Status:** Experimental (v0.1). Tested on single-turn completions and standard OpenAI-compatible chat streams. Multi-turn session retry scoring is in active development.
+
 ---
 
 ## Contents
@@ -15,11 +17,13 @@
 - [2. The method (the part worth stealing)](#2-the-method-the-part-worth-stealing)
 - [3. The scoreboard](#3-the-scoreboard)
 - [4. Serving architecture](#4-serving-architecture)
+  - [4.0 Privacy and data handling](#40-privacy-and-data-handling)
   - [4.1 The router (Bouncer proxy)](#41-the-router-bouncer-proxy--and-how-to-see-who-answered)
   - [4.2 The savings dashboard](#42-the-savings-dashboard)
   - [4.3 The outcome ledger](#43-the-outcome-ledger--closing-the-loop-asynchronously)
 - [5. Repository structure](#5-repository-structure)
 - [6. Status and open problems](#6-status-and-open-problems)
+  - [6.1 Troubleshooting and known considerations](#61-troubleshooting-and-known-considerations)
 - [7. The four-model decomposition experiment](#7-the-four-model-decomposition-experiment)
 - [8. Acknowledging the lineage](#8-acknowledging-the-lineage)
 
@@ -193,9 +197,22 @@ fail-safe: ANY failure → all tools exposed, verification on, source=fallback
 
 The fail-safe is the load-bearing wall: the classifier may be wrong, dead, or slow — the assistant must never notice. Verified by killing the sidecar mid-operation.
 
+### 4.0 Privacy and data handling
+
+The isolation boundary is explicit and load-bearing:
+
+- **Local-First:** Requests handled locally never leave the host machine. The classifier sidecar, the local model tier, and the shadow ledger all run on-loopback, on your hardware.
+- **Egress Boundary:** Upstream/frontier endpoints are only contacted when a task is *explicitly escalated* by the rule layer. No telemetry, no background requests, nothing leaves the host otherwise.
+- **Secret Isolation:** Upstream API keys are held strictly by the egress runner (the proxy's escalation path). They are never exposed to — and never required by — the local routing classifier or its sidecar.
+- **Harness Agnostic:** Bouncer exposes a standard `/v1/chat/completions` endpoint. It works with any OpenAI-compatible framework, custom agent loop, or harness — it is not tied exclusively to any single tool.
+
 ### 4.1 The router (Bouncer proxy) — and how to see who answered
 
 The judgment layer ships with an OpenAI-compatible **proxy** (`serving/proxy.py`) that does the actual routing: point any harness's `base_url` at it and easy prompts are answered by your local model, hard ones pass to the frontier model, tool-carrying prompts are judged too (simple tool work stays local; deep chains go to the frontier). The proxy is harness-agnostic — anything that speaks the OpenAI wire format can sit in front of it.
+
+**Terminology:** "local vs. frontier" is conceptually **Tier 1 (fast/local) vs. Tier 2 (upstream/fallback)**. Tier 1 is whatever fast model you serve on your own hardware; Tier 2 is whatever frontier endpoint you only pay for on escalation.
+
+**Hardware & runtime compatibility:** The initial reference implementation is tested on Apple Silicon (MLX), but that's a reference, not a requirement. Any OpenAI-compatible local server can serve as the Tier 1 fast local tier — MLX-LM, Ollama, llama.cpp, vLLM, or anything else that speaks the standard endpoint. The classifier sidecar is the only piece with an MLX fast path; the routing proxy itself is backend-agnostic.
 
 Every routed reply carries a **tag** so the human always knows who answered. Tags are config, not code — the defaults describe one machine's stack, yours will differ:
 
@@ -314,6 +331,12 @@ bouncer/
 
 - **Outcome labels** (Resolved in v0.2) — Closed via `serving/outcome_extract.py` and `serving/outcome_joiner.py` (§4.3) using deterministic runtime signals (`tool_error`, rapid `user_retry`) joined asynchronously on `decision_id`. The shadow log's append-only ledger now carries execution outcomes — no LLM-as-a-judge needed.
 - **Automated retraining** — a nightly retrain is 88 minutes of GPU producing an identical model when the corpus hasn't changed. The right automation: accumulate new labeled rows, retrain only when there's something new to learn, swap only when the eval beats production. Data-triggered, not clock-triggered. Triggers and eval-gates that make that safe are an open design question.
+
+### 6.1 Troubleshooting and known considerations
+
+- **Cold starts:** Initial latency may spike while the model loads into unified memory. First requests after a sidecar restart pay the load cost; subsequent ones run at full speed (~40ms judgments on Apple Silicon). Warm the sidecar after deployment before you care about latency.
+- **Concurrency:** Tuned for local developer-workstation agent loops — one human, one assistant, sequential requests. Large-scale multi-tenant concurrency is not yet benchmarked; treat the proxy and sidecar as single-user until measured otherwise.
+- **Fail-safe behavior:** On unhandled router or classifier sidecar errors, Bouncer fails gracefully back to the local model route (`FALLBACK_ROUTE=local`) rather than silently escalating to paid cloud APIs. A broken judge costs you speed, never money.
 
 ## 7. The four-model decomposition experiment
 
