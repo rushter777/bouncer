@@ -12,7 +12,7 @@ mlx-metal>=0.31.1
 numpy>=2.0.0
 
 # --- training pipeline (synthetic corpus + RLCD label agreement) ---
-torch>=2.2.0
+torch>=2.14.1
 transformers>=4.48.0
 safetensors>=0.8.0
 
